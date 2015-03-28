@@ -543,6 +543,11 @@ public class SimpleDBLoader {
             {
                 domainPrefix = argValue;
             }
+            else if (argName.equals("domain"))
+            {
+                domainName = argValue;
+                domainCount = 1;
+            }
             else if (argName.equals("threadcount")||argName.equals("t"))
             {
                 threadCount = Integer.parseInt(argValue);
@@ -554,10 +559,6 @@ public class SimpleDBLoader {
             else if (argName.equals("batchcount")||argName.equals("b"))
             {
                 batchCount = Integer.parseInt(argValue);
-            }
-            else if (argName.equals("domain"))
-            {
-                domainName = argValue;
             }
             else if (argName.equals("filename")||argName.equals("f"))
             {
@@ -664,10 +665,16 @@ public class SimpleDBLoader {
     
     public String getDomainNameForIndex(int index)
     {
-        if (index<10)
-            return domainPrefix+'0'+index;
-        else
-            return domainPrefix+index;
+        if (domainName.equals("")) {
+            if (index<10)
+                return domainPrefix+'0'+index;
+            else
+                return domainPrefix+index;
+        } 
+        else 
+        {
+            return domainName;
+        }
     }
     
     public AmazonSimpleDBConfig getConfig()
