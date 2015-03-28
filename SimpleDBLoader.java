@@ -397,6 +397,7 @@ public class SimpleDBLoader {
 
     int itemCount = 10000;
     String filename = "";
+    String domainName = "";
 
     ArrayList<ArrayList<ReplaceableItem>> domainItems = new ArrayList<ArrayList<ReplaceableItem>>(domainCount);
     List<Future<BatchPutAttributesResponse>> putResponses = new ArrayList<Future<BatchPutAttributesResponse>>();
@@ -419,7 +420,7 @@ public class SimpleDBLoader {
         if (loader.accessKeyId.equals(""))
         {
             System.out.println("*****************************************************************************************");
-            System.out.println("*You need to supply your access keys vias the command line, or edit SimpleDBLoader.java*");
+            System.out.println("*You need to supply your access keys via the command line, or edit SimpleDBLoader.java*");
             System.out.println("*to add your own AWS access keys and recompile before you can run this.                *");
             System.out.println("****************************************************************************************");
             System.out.println("");
@@ -438,6 +439,26 @@ public class SimpleDBLoader {
         else if (command.equals("test"))
         {
             loader.runTests();
+        }
+        else if (command.equals("createdomain"))
+        {
+            if (loader.domainName.equals(""))
+            {
+                System.out.println("You must supply the name of a domain to create.");
+                loader.printHelp();
+                System.exit(1);
+            }
+            loader.createDomain();
+        }
+        else if (command.equals("deletedomain"))
+        {
+            if (loader.domainName.equals(""))
+            {
+                System.out.println("You must supply the name of a domain to delete.");
+                loader.printHelp();
+                System.exit(1);
+            }
+            loader.deleteDomain();
         }
         else if (command.equals("loadjson"))
         {
@@ -534,6 +555,10 @@ public class SimpleDBLoader {
             {
                 batchCount = Integer.parseInt(argValue);
             }
+            else if (argName.equals("domain"))
+            {
+                domainName = argValue;
+            }
             else if (argName.equals("filename")||argName.equals("f"))
             {
                 filename = argValue;
@@ -596,6 +621,12 @@ public class SimpleDBLoader {
         System.out.println("The CSV format for uploading is to have an initial line containing a list of the attributes names that each column represents,");
         System.out.println("followed by lines containing the attribute values of each item. Since SimpleDB items require a unique ID, you either need to");
         System.out.println("pass in the name of the column through -idname, or the first column will be picked by default.");
+        System.out.println("");
+        System.out.println("Create individual domains:");
+        System.out.println("./sdbloader createdomain -domain foo");
+        System.out.println("");
+        System.out.println("Delete individual domains:");
+        System.out.println("./sdbloader deletedomain -domain foo");
         System.out.println("");
         System.out.println("You can supply the following arguments to configure the loading:");
         System.out.println("-accesskey/-a : Your AWS account access key (required)");
@@ -671,6 +702,41 @@ public class SimpleDBLoader {
         executor.shutdown();    
     }
     
+    public void createDomain()
+    {
+        AmazonSimpleDBConfig config = getConfig();
+        
+        ExecutorService executor = Executors.newFixedThreadPool(threadCount);
+        AmazonSimpleDBAsync service = new AmazonSimpleDBAsyncClient(accessKeyId, secretAccessKey, config, executor);
+
+        List<CreateDomainRequest> requests = new ArrayList<CreateDomainRequest>();
+        CreateDomainRequest request = new CreateDomainRequest();
+        request.setDomainName(domainName);
+        requests.add(request);
+    
+        invokeCreateDomain(service, requests);
+        
+        executor.shutdown();
+    }
+    
+    public void deleteDomain()
+    {
+        AmazonSimpleDBConfig config = getConfig();
+
+        ExecutorService executor = Executors.newFixedThreadPool(threadCount);
+        AmazonSimpleDBAsync service = new AmazonSimpleDBAsyncClient(accessKeyId, secretAccessKey, config, executor);
+
+        List<DeleteDomainRequest> requests = new ArrayList<DeleteDomainRequest>();
+        DeleteDomainRequest request = new DeleteDomainRequest();
+        request.setDomainName(domainName);
+        requests.add(request);
+    
+        invokeDeleteDomain(service, requests);
+        
+        executor.shutdown();    
+    }
+    
+
     // Returns the current required delay between calls to the same domain, based on the idea that
     // AWS penalizes 'bursty' writers by throttling them, so we need to slowly ease up our request
     // rate from 1 per second at the start, to around 4 over the course of two minutes
