@@ -22,6 +22,7 @@ import java.io.BufferedReader;
 import java.io.FileReader;
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.util.Properties;
 import java.util.zip.*;
 import org.json.simple.parser.JSONParser;
 import org.json.simple.*;
@@ -420,8 +421,7 @@ public class SimpleDBLoader {
         if (loader.accessKeyId.equals(""))
         {
             System.out.println("*****************************************************************************************");
-            System.out.println("*You need to supply your access keys via the command line, or edit SimpleDBLoader.java*");
-            System.out.println("*to add your own AWS access keys and recompile before you can run this.                *");
+            System.out.println("*You need to supply your access keys via the command line or config file.");
             System.out.println("****************************************************************************************");
             System.out.println("");
             loader.printHelp();
@@ -576,6 +576,10 @@ public class SimpleDBLoader {
             {
                 rampTime = Integer.parseInt(argValue)*1000;
             }
+            else if (argName.equals("config")||argName.equals("c"))
+            {
+                parseConfigFile(argValue);
+            }
             else if (argName.equals("accesskey")||argName.equals("a"))
             {
                 accessKeyId = argValue;
@@ -605,49 +609,54 @@ public class SimpleDBLoader {
         System.out.println("");
         System.out.println("This project explores the fastest way of loading large amounts of data into SimpleDB.");
         System.out.println("");
-        System.out.println("");
-        System.out.println("First, create the domains you'll need.");
-        System.out.println("");
-        System.out.println("  Create individual domains:");
-        System.out.println("    ./sdbloader createdomain -domain foo");
-        System.out.println("  or, create multiple enumerated domains, specifying a prefix via the optional '-p' argument:");
-        System.out.println("    ./sdbloader setup");
+        System.out.println("Amazon credentials may be passed in at the command line or via a config file.");
         System.out.println("");
         System.out.println("");
-        System.out.println("After that, you can test the data loading speed with sample data:");
-        System.out.println("  ./sdbloader test");
+        System.out.println("To test data load speed, run these commands which will:");
+        System.out.println("  1. Create multiple enumerated domains");
+        System.out.println("  2. Load sample data, selecting domains via hash on id field");
+        System.out.println("  3. Remove the test domains");
+
         System.out.println("");
-        System.out.println("Don't forget to clean up your domains after testing.");
-        System.out.println("");
-        System.out.println("  Delete individual domains:");
-        System.out.println("    ./sdbloader deletedomain -domain foo");
-        System.out.println("");
-        System.out.println("  Delete multiple enumerated domains (may specify prefix via -p argument)");
-        System.out.println("    ./sdbloader cleanup");
+        System.out.println("    ./sdbloader setup -config aws.config");
+        System.out.println("    ./sdbloader test -config aws.config");
+        System.out.println("    ./sdbloader cleanup -config aws.config");
         System.out.println("");
         System.out.println("");
         System.out.println("This class also functions as a fast way to upload data from files:");
         System.out.println("");
         System.out.println("  Load data from a comma-separated value (CSV) file:");
-        System.out.println("    ./sdbloader loadcsv -filename data.csv");
+        System.out.println("    ./sdbloader loadcsv -filename data.csv -config aws.config");
         System.out.println("");
         System.out.println("  The CSV format for uploading is to have an initial line containing a list of the attribute names that each column represents,");
         System.out.println("  followed by lines containing the attribute values of each item. Since SimpleDB items require a unique ID, you either need to");
         System.out.println("  pass in the name of the column through -idname, or the first column will be picked by default.");
         System.out.println("");
         System.out.println("  Load data from a JSON file:");
-        System.out.println("    ./sdbloader loadjson -filename data.json");
+        System.out.println("    ./sdbloader loadjson -filename data.json -config aws.config");
         System.out.println("");
         System.out.println("  The JSON format for uploading is to have each item's data on a separate line in the file. The first string is the unique ID to use");
         System.out.println("  as the item's key, followed by a tab, then a JSON string containing an associative array describing that item's attributes and values.");
         System.out.println("");
         System.out.println("");
+        System.out.println("You can also perform actions on a single domain rather than using the default prefix + index sharding by using the '-domain' argument.");
+        System.out.println("");
+        System.out.println("To create an individual domain:");
+        System.out.println("  ./sdbloader createdomain -domain foo -config aws.config");
+        System.out.println("");
+        System.out.println("To delete an individual domain:");
+        System.out.println("  ./sdbloader deletedomain -domain foo -config aws.config");
+        System.out.println("");
+        System.out.println("");
         System.out.println("You can supply the following arguments to configure the loading:");
-        System.out.println("  -accesskey/-a : Your AWS account access key (required)");
-        System.out.println("  -secretkey/-s : Your AWS secret key (required)");
+        System.out.println("  -accesskey/-a : AWS account access key (required)");
+        System.out.println("  -secretkey/-s : AWS secret key (required)");
+        System.out.println("  -config/-c : An optional config file containing the access and secret keys:");
+        System.out.println("               AWSAccessKeyId=access_key");
+        System.out.println("               AWSSecretKey=secret_key");
         System.out.println("  -domaincount/-d : How many domains to shard the items across (defaults to 25)");
         System.out.println("  -domainprefix/-p : The string to start all the domain names with, followed by a number for each (defaults to 'test_domain')");
-        System.out.println("  -domain : The name of the target domain when only operating on a single domain instead of the normal default of specifying a count.");
+        System.out.println("  -domain : The name of the target domain when only operating on a single domain instead of the default prefix+index.");
         System.out.println("  -threadcount/-t : The number of threads to run in parallel (defaults to 100)");
         System.out.println("  -itemcount/-i : For the 'test' benchmarking command, sets the number of items to generate and load (defaults to 10000)");
         System.out.println("  -batchcount/-b : How many items to batch together into a single HTTP request to SimpleDB (defaults to 20)");
@@ -677,6 +686,37 @@ public class SimpleDBLoader {
         }
     }
     
+    /**
+     * Read AWS keys from a Java-style config file.
+     */
+    public void parseConfigFile (String configFileName) {
+        Properties prop = new Properties();
+        FileInputStream input = null;
+       
+        try {
+       
+          input = new FileInputStream(configFileName);
+       
+          // load the properties file
+          prop.load(input);
+       
+          // get the property value and print it out
+          accessKeyId = prop.getProperty("AWSAccessKeyId");
+          secretAccessKey = prop.getProperty("AWSSecretKey");
+       
+        } catch (IOException ex) {
+          ex.printStackTrace();
+        } finally {
+          if (input != null) {
+            try {
+              input.close();
+            } catch (IOException e) {
+              e.printStackTrace();
+            }
+          }
+        }
+    }
+
     public AmazonSimpleDBConfig getConfig()
     {
         AmazonSimpleDBConfig config = new AmazonSimpleDBConfig().withMaxConnections(threadCount);
